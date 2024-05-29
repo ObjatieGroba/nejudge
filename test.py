@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 import argparse
 import subprocess
@@ -9,6 +10,9 @@ import glob
 from functools import cache
 from typing import Optional, Tuple
 import difflib
+
+
+nejudge_path = Path(os.path.realpath(__file__)).parent
 
 
 def check_ban(regex_filter, text, name='common', reason=None) -> bool:
@@ -131,13 +135,13 @@ def check_clang_format_version():
     version = re.findall(r'\d+', proc.stdout.decode())
     if not version:
         helper('Unable to parse version from "' + proc.stdout.decode() + '"')
-    major = version[0]
+    major = int(version[0])
     if major < required_version:
         helper(f'clang-format version {major} is not supported')
 
 
 def run_clang_format(source_file: str, format_file: str, ci: bool):
-    args = ['python3', 'tools/run-clang-format.py', f'--style=file:{format_file}', source_file]
+    args = ['python3', f'{nejudge_path}/tools/run-clang-format.py', '--style', f'file:{format_file}', source_file]
     proc = subprocess.run(args, capture_output=True)
     if proc.returncode == 0:
         return
@@ -154,20 +158,21 @@ def run_clang_format(source_file: str, format_file: str, ci: bool):
     if ci:
         raise RuntimeError("Clang-format not passed")
     fix = input('Clang-format is not passed. Fix code? (Y/n)')
-    if not fix or fix.lower() in ('y', 'yes'):
-        args.append('-i')
+    if fix and fix.lower() not in ('y', 'yes'):
+        raise RuntimeError("Clang-format not passed")
+    args.append('-i')
     proc = subprocess.run(args, capture_output=True)
     if proc.returncode == 0:
         return
-    raise RuntimeError("Unexpected failure while fixing code")
+    raise RuntimeError(f"Unexpected failure while fixing code {proc.returncode}")
 
 
 def check_style(source_file_wildcard: str, ci: bool):
     for source_file in glob.glob(source_file_wildcard):
         if not source_file.endswith('.S') and not source_file.endswith('.s'):
-            clang_format_file = '.clang-format'
-            if os.path.isfile(clang_format_file):
-                run_clang_format(source_file, clang_format_file, ci)
+            clang_format_file = nejudge_path / '.clang-format'
+            if clang_format_file.is_file():
+                run_clang_format(source_file, str(clang_format_file), ci)
 
         regex_checks_passed = True
         regex_filter = os.environ.get('EJ_BAN_BY_REGEX', '')
@@ -285,14 +290,16 @@ def res_checker(res: bytes, ans: Path, checker: str):
     with open(ans, 'rb') as expected:
         to_cmp = expected.read()
     if checker == 'cmp':
-        diff = difflib.diff_bytes(difflib.unified_diff, to_cmp.split(b'\n'), res.split(b'\n'))
+        diff = list(difflib.diff_bytes(difflib.unified_diff, to_cmp.split(b'\n'), res.split(b'\n')))
         if diff:
-            print(*diff)
+            for line in diff:
+                sys.stdout.write(line.decode(errors='replace'))
             raise RuntimeError(f"Output missmatched on test {test}. Check \"output\" file")
     elif checker == 'sorted-lines':
-        diff = difflib.diff_bytes(difflib.unified_diff, sorted(to_cmp.strip().split(b'\n')), sorted(res.strip().split(b'\n')))
+        diff = list(difflib.diff_bytes(difflib.unified_diff, sorted(to_cmp.strip().split(b'\n')), sorted(res.strip().split(b'\n'))))
         if diff:
-            print(*diff)
+            for line in diff:
+                sys.stdout.write(line.decode(errors='replace'))
             raise RuntimeError(f"Output missmatched on test {test}. Check \"output\" file")
     elif checker == 'cmp-double':
         eps = float(os.environ.get('EPS', 0))
