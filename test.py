@@ -8,9 +8,15 @@ import re
 import shlex
 import glob
 import time
-from functools import cache
+try:
+    from functools import cache
+except ImportError:
+    def cache(func):
+        return func
 from typing import Optional, Tuple
 import difflib
+import json
+import yaml
 
 
 nejudge_path = Path(os.path.realpath(__file__)).parent
@@ -71,7 +77,8 @@ def preprocess(file: str):
     in_source = False
     source_found = False
     for i, line in enumerate(preprocessed.splitlines(keepends=True)):
-        if m := re.match(r'# \d+ "(.+?)"', line):
+        m = re.match(r'# \d+ "(.+?)"', line)
+        if m:
             # There still may be multiple <stdin> line markers,
             # e.g. if there are some comment-only lines which are stripped by the preprocessor (but not always?)
             filename = m.group(1)
@@ -116,7 +123,12 @@ def split_reason(regex: str) -> Tuple[str, Optional[str]]:
     return parts  # type: ignore
 
 
-def check_clang_format_version():
+def load_legacy_clang_format_file() -> str:
+    with open(nejudge_path / '.clang-format-11') as f:
+        return json.dumps(yaml.safe_load(f))
+
+
+def check_clang_format_version(source_file: str, format_file: str) -> tp.List[str]:
     def helper(msg):
         print(f'Clang-format minimal required {required_version}. Suggested 15')
         print('To install on debian run: `apt install clang-format`')
@@ -131,6 +143,7 @@ def check_clang_format_version():
     args = ['clang-format', '--version']
     proc = subprocess.run(args, capture_output=True)
     required_version = 11
+    suggested_version = 15
     if proc.returncode != 0:
         helper('clang-format is not installed!!!')
     version = re.findall(r'\d+', proc.stdout.decode())
@@ -139,14 +152,17 @@ def check_clang_format_version():
     major = int(version[0])
     if major < required_version:
         helper(f'clang-format version {major} is not supported')
+    if major < suggested_version:
+        print("WARNING: Use legacy clang-format file.")
+        return ['python3', f'{nejudge_path}/tools/run-clang-format.py', '--style', load_legacy_clang_format_file(), source_file]
+    return ['python3', f'{nejudge_path}/tools/run-clang-format.py', '--style', f'file:{format_file}', source_file]
 
 
 def run_clang_format(source_file: str, format_file: str, ci: bool):
-    args = ['python3', f'{nejudge_path}/tools/run-clang-format.py', '--style', f'file:{format_file}', source_file]
+    args = check_clang_format_version(source_file, format_file)
     proc = subprocess.run(args, capture_output=True)
     if proc.returncode == 0:
         return
-    check_clang_format_version()
     print('Clang-format returned error(s):')
     try:
         print(proc.stderr.decode())
@@ -170,7 +186,7 @@ def run_clang_format(source_file: str, format_file: str, ci: bool):
 
 def check_style(source_file_wildcard: str, ci: bool):
     for source_file in glob.glob(source_file_wildcard):
-        if source_file.endswith('.c') or source_file.endswith('.cpp') or source_file.endswith('.hpp'):
+        if not source_file.endswith('.S') and not source_file.endswith('.s'):
             clang_format_file = nejudge_path / '.clang-format'
             if clang_format_file.is_file():
                 run_clang_format(source_file, str(clang_format_file), ci)
@@ -196,10 +212,10 @@ def check_style(source_file_wildcard: str, ci: bool):
 
 def get_child_pid(pid: int) -> int:
     for i in range(10):
+        time.sleep(0.1)
         p = subprocess.run(['ps', '--ppid', str(pid), '-o', 'pid='], capture_output=True)
         if p.stdout.strip():
             return int(p.stdout.strip())
-        time.sleep(0.1)
     raise RuntimeError(f"No child process of {pid} found")
 
 
@@ -215,7 +231,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         cmd = f'{cmd} {params}'.strip()
     if user:
         cmd = f'sudo -E -u {user} ' + cmd
-    print(cmd, flush=True)
+    print(cmd)
     env = os.environ
     if env_add:
         env = env.copy()
@@ -225,15 +241,11 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         p = subprocess.Popen(shlex.split(cmd), stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=False, env=env)
         pid = p.pid
         if user:
-            try:
-                pid = get_child_pid(pid)
-            except Exception:
-                print("Failed to start solution", p.returncode)
-                raise
+            pid = get_child_pid(pid)
         int_cmd = [interactor, str(input_file),
                    'output', str(correct_file),
                    str(pid), str(inf_file) if inf_file.is_file() else '']
-        print(shlex.join(int_cmd), flush=True)
+        print(shlex.join(int_cmd))
         i = subprocess.Popen(int_cmd, stdin=p.stdout.fileno(), stdout=p.stdin.fileno(), shell=False, env=env)
         p.stdout.close()
         p.stdin.close()
