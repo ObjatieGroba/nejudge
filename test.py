@@ -225,7 +225,11 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         p = subprocess.Popen(shlex.split(cmd), stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=False, env=env)
         pid = p.pid
         if user:
-            pid = get_child_pid(pid)
+            try:
+                pid = get_child_pid(pid)
+            except Exception:
+                print("Failed to start solution", p.returncode)
+                raise
         int_cmd = [interactor, str(input_file),
                    'output', str(correct_file),
                    str(pid), str(inf_file) if inf_file.is_file() else '']
