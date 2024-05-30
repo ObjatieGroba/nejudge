@@ -39,7 +39,7 @@ def extract_solution_without_includes(file: str) -> str:
     with open(file, 'r') as f:
         for i, orig_line in enumerate(f):
             line = orig_line.strip()
-            if line.startswith('#include'):
+            if line.startswith('#include') or line.startswith('#define') or line.startswith('#pragma'):
                 continue
             elif line.startswith('#'):
                 raise RuntimeError(f'Line markers are not allowed. Bad line {i}: {repr(line)}')
