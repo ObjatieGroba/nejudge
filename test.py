@@ -193,6 +193,11 @@ def check_style(source_file_wildcard: str, ci: bool):
             raise RuntimeError("Regex check failed")
 
 
+def get_child_pid(pid: int) -> int:
+    p = subprocess.run(['ps', '--ppid', str(pid), '-o', 'pid='])
+    return int(p.stdout)
+
+
 def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str, params: str,
                  output_file: tp.Optional[str], env_add: tp.Optional[tp.Dict[str, str]],
                  interactor: tp.Optional[str], user: tp.Optional[str], meta: tp.Dict[str, tp.Any]) -> bytes:
@@ -213,9 +218,12 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
     before_children_user = os.times().children_user
     if interactor:
         p = subprocess.Popen(shlex.split(cmd), stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=False, env=env)
+        pid = p.pid
+        if user:
+            pid = get_child_pid(pid)
         int_cmd = [interactor, str(input_file),
                    'output', str(correct_file),
-                   str(p.pid), str(inf_file) if inf_file.is_file() else '']
+                   str(pid), str(inf_file) if inf_file.is_file() else '']
         print(shlex.join(int_cmd))
         i = subprocess.Popen(int_cmd, stdin=p.stdout.fileno(), stdout=p.stdin.fileno(), shell=False, env=env)
         p.stdout.close()
