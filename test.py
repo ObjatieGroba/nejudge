@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import glob
+import time
 from functools import cache
 from typing import Optional, Tuple
 import difflib
@@ -194,6 +195,7 @@ def check_style(source_file_wildcard: str, ci: bool):
 
 
 def get_child_pid(pid: int) -> int:
+    time.sleep(0.1)
     p = subprocess.run(['ps', '--ppid', str(pid), '-o', 'pid='], capture_output=True)
     return int(p.stdout.strip())
 
