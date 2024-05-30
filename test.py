@@ -294,14 +294,16 @@ def res_checker(res: bytes, ans: Path, checker: str):
         if diff:
             for line in diff:
                 sys.stdout.write(line.decode(errors='replace'))
-                print()
+                if not line.endswith(b'\n'):
+                    print()
             raise RuntimeError(f"Output missmatched on test {test}. Check \"output\" file")
     elif checker == 'sorted-lines':
         diff = list(difflib.diff_bytes(difflib.unified_diff, sorted(to_cmp.strip().split(b'\n')), sorted(res.strip().split(b'\n'))))
         if diff:
             for line in diff:
                 sys.stdout.write(line.decode(errors='replace'))
-                print()
+                if not line.endswith(b'\n'):
+                    print()
             raise RuntimeError(f"Output missmatched on test {test}. Check \"output\" file")
     elif checker == 'cmp-double':
         eps = float(os.environ.get('EPS', 0))
