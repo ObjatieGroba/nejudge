@@ -215,7 +215,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         cmd = f'{cmd} {params}'.strip()
     if user:
         cmd = f'sudo -E -u {user} ' + cmd
-    print(cmd)
+    print(cmd, flush=True)
     env = os.environ
     if env_add:
         env = env.copy()
@@ -229,7 +229,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         int_cmd = [interactor, str(input_file),
                    'output', str(correct_file),
                    str(pid), str(inf_file) if inf_file.is_file() else '']
-        print(shlex.join(int_cmd))
+        print(shlex.join(int_cmd), flush=True)
         i = subprocess.Popen(int_cmd, stdin=p.stdout.fileno(), stdout=p.stdin.fileno(), shell=False, env=env)
         p.stdout.close()
         p.stdin.close()
@@ -354,7 +354,6 @@ if is_pipeline:
 check_style(args.source_file, is_pipeline)
 
 for test in sorted(Path('tests').glob('*.dat')):
-    sys.stdout.flush()
     inf = Path(str(test).removesuffix('.dat') + '.inf')
     ans = Path(str(test).removesuffix('.dat') + '.ans')
     meta = {}
