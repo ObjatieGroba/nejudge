@@ -214,7 +214,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
     else:
         cmd = f'{cmd} {params}'.strip()
     if user:
-        cmd = f'sudo -u {user} ' + cmd
+        cmd = f'sudo -E -u {user} ' + cmd
     print(cmd)
     env = os.environ
     if env_add:
