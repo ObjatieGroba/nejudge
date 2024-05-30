@@ -196,10 +196,10 @@ def check_style(source_file_wildcard: str, ci: bool):
 
 def get_child_pid(pid: int) -> int:
     for i in range(10):
-        time.sleep(0.1)
         p = subprocess.run(['ps', '--ppid', str(pid), '-o', 'pid='], capture_output=True)
         if p.stdout.strip():
             return int(p.stdout.strip())
+        time.sleep(0.1)
     raise RuntimeError(f"No child process of {pid} found")
 
 
