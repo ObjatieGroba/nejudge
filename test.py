@@ -194,8 +194,8 @@ def check_style(source_file_wildcard: str, ci: bool):
 
 
 def get_child_pid(pid: int) -> int:
-    p = subprocess.run(['ps', '--ppid', str(pid), '-o', 'pid='])
-    return int(p.stdout)
+    p = subprocess.run(['ps', '--ppid', str(pid), '-o', 'pid='], capture_output=True)
+    return int(p.stdout.strip())
 
 
 def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str, params: str,
