@@ -354,6 +354,7 @@ if is_pipeline:
 check_style(args.source_file, is_pipeline)
 
 for test in sorted(Path('tests').glob('*.dat')):
+    sys.stdout.flush()
     inf = Path(str(test).removesuffix('.dat') + '.inf')
     ans = Path(str(test).removesuffix('.dat') + '.ans')
     meta = {}
