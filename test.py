@@ -186,6 +186,9 @@ def run_clang_format(source_file: str, format_file: str, ci: bool):
 
 def check_style(source_file_wildcard: str, ci: bool):
     for source_file in glob.glob(source_file_wildcard):
+        if not os.path.isfile(source_file):
+            print("WARNING:", source_file, "is not valid source file")
+            continue
         if source_file.endswith('.c') or source_file.endswith('.cpp') or source_file.endswith('.hpp'):
             clang_format_file = nejudge_path / '.clang-format'
             if clang_format_file.is_file():
