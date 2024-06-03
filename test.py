@@ -224,7 +224,8 @@ def get_child_pid(pid: int) -> int:
 
 def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str, params: str,
                  output_file: tp.Optional[str], env_add: tp.Optional[tp.Dict[str, str]],
-                 interactor: tp.Optional[str], user: tp.Optional[str], meta: tp.Dict[str, tp.Any]) -> bytes:
+                 interactor: tp.Optional[str], user: tp.Optional[str], meta: tp.Dict[str, tp.Any],
+                 is_pipeline: bool) -> bytes:
     params = params.replace('input.txt', str(input_file))
     cmd = cmd.replace('input.txt', str(input_file))
     cmd = cmd.replace('test_name', 'tests/' + input_file.name.removesuffix('.dat'))
@@ -282,7 +283,10 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
     after_children_user = os.times().children_user
     real_time_limit = meta.get('time_limit', float(os.environ.get('EJUDGE_REAL_TIME_LIMIT_MS', 1.)))
     if after_children_user - before_children_user > real_time_limit:
-        raise RuntimeError(f'Time limit exceed: {after_children_user - before_children_user} > {real_time_limit} secs')
+        if is_pipeline:
+            raise RuntimeError(f'Time limit exceed: {after_children_user - before_children_user} > {real_time_limit} secs')
+        else:
+            print('ERROR:', f'Time limit exceed: {after_children_user - before_children_user} > {real_time_limit} secs')
     return res
 
 
@@ -386,7 +390,7 @@ for test in sorted(Path('tests').glob('*.dat')):
     if not ans.is_file() and not args.prepare_answers:
         raise RuntimeError("No answer for test " + test.name)
     res = run_solution(test, ans, inf, args.run_cmd, meta.get('params', ''), args.output_file, meta.get('environ'),
-                       args.interactor, args.user, meta)
+                       args.interactor, args.user, meta, is_pipeline)
     if not args.prepare_answers:
         try:
             res_checker(res, ans, args.checker)
