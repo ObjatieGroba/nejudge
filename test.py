@@ -373,6 +373,7 @@ parser.add_argument('--user', required=False)
 args = parser.parse_args()
 
 is_pipeline = bool(os.environ.get('GITLAB_CI', None))
+retests_amount = int(os.environ.get('EJ_RETESTS_AMOUNT', 1))
 
 if is_pipeline:
     args.may_fail_local = []
@@ -380,29 +381,31 @@ if is_pipeline:
 
 check_style(args.source_file, is_pipeline)
 
-for test in sorted(Path('tests').glob('*.dat')):
-    inf = Path(str(test).removesuffix('.dat') + '.inf')
-    ans = Path(str(test).removesuffix('.dat') + '.ans')
-    meta = {}
-    if inf.is_file():
-        with open(inf) as f:
-            meta = parse_inf_file(f)
-    if not ans.is_file() and not args.prepare_answers:
-        raise RuntimeError("No answer for test " + test.name)
-    res = run_solution(test, ans, inf, args.run_cmd, meta.get('params', ''), args.output_file, meta.get('environ'),
-                       args.interactor, args.user, meta, is_pipeline)
-    if not args.prepare_answers:
-        try:
-            res_checker(res, ans, args.checker)
-        except:
-            if str(test) in args.may_fail_local:
-                print(f"Test {test} skipped")
-            else:
-                with open('output', 'wb') as f:
-                    f.write(res)
-                raise
-    else:
-        with open(ans, 'wb') as fout:
-            fout.write(res)
+for cnt in range(retests_amount):
+    print(f"Trying tests #{cnt}")
+    for test in sorted(Path('tests').glob('*.dat')):
+        inf = Path(str(test).removesuffix('.dat') + '.inf')
+        ans = Path(str(test).removesuffix('.dat') + '.ans')
+        meta = {}
+        if inf.is_file():
+            with open(inf) as f:
+                meta = parse_inf_file(f)
+        if not ans.is_file() and not args.prepare_answers:
+            raise RuntimeError("No answer for test " + test.name)
+        res = run_solution(test, ans, inf, args.run_cmd, meta.get('params', ''), args.output_file, meta.get('environ'),
+                        args.interactor, args.user, meta, is_pipeline)
+        if not args.prepare_answers:
+            try:
+                res_checker(res, ans, args.checker)
+            except:
+                if str(test) in args.may_fail_local:
+                    print(f"Test {test} skipped")
+                else:
+                    with open('output', 'wb') as f:
+                        f.write(res)
+                    raise
+        else:
+            with open(ans, 'wb') as fout:
+                fout.write(res)
 
 print("All tests passed")
