@@ -222,6 +222,12 @@ def get_child_pid(pid: int) -> int:
     raise RuntimeError(f"No child process of {pid} found")
 
 
+def check_exit_code(code: int, pat: str) -> bool:
+    if pat == '!0':
+        return code != 0
+    return str(code) == pat
+
+
 def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str, params: str,
                  output_file: tp.Optional[str], env_add: tp.Optional[tp.Dict[str, str]],
                  interactor: tp.Optional[str], user: tp.Optional[str], meta: tp.Dict[str, tp.Any],
@@ -271,9 +277,9 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         with open(input_file) as fin:
             p = subprocess.Popen(shlex.split(cmd), stdin=fin, stdout=subprocess.PIPE, shell=False, env=env)
             res, _ = p.communicate()
-    if p.returncode != 0:
+    if check_exit_code(p.returncode, meta.get('exit_code', '0')):
         print(res)
-        raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}')
+        raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
     if output_file:
         if res:
             raise RuntimeError(f'Unexpected output on test {input_file}')
@@ -315,6 +321,10 @@ def parse_inf_file(f):
             pass
         elif key == 'time_limit_ms':
             res['time_limit'] = int(val) / 1000
+        elif key == 'exit_code':
+            if key in res:
+                raise RuntimeError("Duplicated params")
+            res[key] = val
         else:
             raise RuntimeError(f"Unknown inf param {key} = {val}")
 
