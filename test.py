@@ -277,7 +277,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         with open(input_file) as fin:
             p = subprocess.Popen(shlex.split(cmd), stdin=fin, stdout=subprocess.PIPE, shell=False, env=env)
             res, _ = p.communicate()
-    if check_exit_code(p.returncode, meta.get('exit_code', '0')):
+    if not check_exit_code(p.returncode, meta.get('exit_code', '0')):
         print(res)
         raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
     if output_file:
