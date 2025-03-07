@@ -230,10 +230,36 @@ def check_exit_code(code: int, pat: str) -> bool:
     return str(code) == pat
 
 
+class Initializer:
+    def __init__(self, cmd: tp.Optional[str], input_file, correct_file, inf_file, env):
+        self.cmd = shlex.split(cmd) if cmd else None
+        self.input_file = input_file
+        self.correct_file = correct_file
+        self.inf_file = inf_file
+        self.env = env
+
+    def __enter__(self):
+        if self.cmd:
+            p = subprocess.Popen(self.cmd + ['start', str(self.input_file), str(self.correct_file), str(self.inf_file)],
+                                 shell=False, env=self.env)
+            p.communicate()
+            if p.returncode != 0:
+                raise RuntimeError(f"Failed to run initializer start {p.returncode}")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.cmd:
+            p = subprocess.Popen(self.cmd + ['stop', str(self.input_file), str(self.correct_file), str(self.inf_file)],
+                                 shell=False, env=self.env)
+            p.communicate()
+            if p.returncode != 0:
+                print(f"WARN: Failed to run initializer stop {p.returncode}")
+
+
 def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str, params: str,
                  output_file: tp.Optional[str], env_add: tp.Optional[tp.Dict[str, str]],
-                 interactor: tp.Optional[str], user: tp.Optional[str], meta: tp.Dict[str, tp.Any],
-                 is_pipeline: bool) -> bytes:
+                 interactor: tp.Optional[str], initializer: tp.Optional[str], user: tp.Optional[str],
+                 meta: tp.Dict[str, tp.Any], is_pipeline: bool) -> bytes:
     params = params.replace('input.txt', str(input_file))
     cmd = cmd.replace('input.txt', str(input_file))
     cmd = cmd.replace('test_name', 'tests/' + input_file.name.removesuffix('.dat'))
@@ -249,36 +275,39 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         env = env.copy()
         env.update(env_add)
     before_children_user = os.times().children_user
-    if interactor:
-        p = subprocess.Popen(shlex.split(cmd), stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=False, env=env)
-        pid = p.pid
-        if user:
-            try:
-                pid = get_child_pid(pid)
-            except Exception:
-                print("Failed to start solution", p.returncode)
-                raise
-        int_cmd = [interactor, str(input_file),
-                   'output', str(correct_file),
-                   str(pid), str(inf_file) if inf_file.is_file() else '']
-        print(shlex.join(int_cmd), flush=True)
-        i = subprocess.Popen(int_cmd, stdin=p.stdout.fileno(), stdout=p.stdin.fileno(), shell=False, env=env)
-        p.stdout.close()
-        p.stdin.close()
-        p.wait()
-        i.wait()
-        if i.returncode != 0:
-            if os.path.isfile('output'):
-                with open('output', 'rb') as f:
-                    print(f.read().decode(errors='replace'))
-                print()
-            raise RuntimeError(f'Interactor failed with code {i.returncode} on test {input_file}')
-        with open('output', 'rb') as f:
-            res = f.read()
-    else:
-        with open(input_file) as fin:
-            p = subprocess.Popen(shlex.split(cmd), stdin=fin, stdout=subprocess.PIPE, shell=False, env=env)
-            res, _ = p.communicate()
+    with Initializer(initializer, input_file, output_file, inf_file, env):
+        if interactor:
+            p = subprocess.Popen(shlex.split(cmd), stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=False, env=env)
+            pid = p.pid
+            if user:
+                try:
+                    pid = get_child_pid(pid)
+                except Exception:
+                    print("Failed to start solution", p.returncode)
+                    raise
+            int_cmd = [interactor, str(input_file),
+                       'output', str(correct_file),
+                       str(pid), str(inf_file) if inf_file.is_file() else '']
+            print(shlex.join(int_cmd), flush=True)
+            interactor_env = env.copy()
+            interactor_env.update(meta.get('interactor_env', {}))
+            i = subprocess.Popen(int_cmd, stdin=p.stdout.fileno(), stdout=p.stdin.fileno(), shell=False, env=interactor_env)
+            p.stdout.close()
+            p.stdin.close()
+            p.wait()
+            i.wait()
+            if i.returncode != 0:
+                if os.path.isfile('output'):
+                    with open('output', 'rb') as f:
+                        print(f.read().decode(errors='replace'))
+                    print()
+                raise RuntimeError(f'Interactor failed with code {i.returncode} on test {input_file}')
+            with open('output', 'rb') as f:
+                res = f.read()
+        else:
+            with open(input_file) as fin:
+                p = subprocess.Popen(shlex.split(cmd), stdin=fin, stdout=subprocess.PIPE, shell=False, env=env)
+                res, _ = p.communicate()
     if not check_exit_code(p.returncode, meta.get('exit_code', '0')):
         print(res)
         raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
@@ -314,7 +343,17 @@ def parse_inf_file(f):
                 res[key] = {}
             eq = val.find('=')
             if not eq:
-                raise RuntimeError("Unsupported env " + str(val))
+                raise RuntimeError("Unsupported env " + repr(val))
+            if len(val) > 2 and val[0] == '"' == val[-1]:
+                res[key][val[1: eq]] = val[eq + 1: -1]
+            else:
+                res[key][val[: eq]] = val[eq + 1:]
+        elif key == 'interactor_env':
+            if key not in res:
+                res[key] = {}
+            eq = val.find('=')
+            if not eq:
+                raise RuntimeError("Unsupported env " + repr(val))
             if len(val) > 2 and val[0] == '"' == val[-1]:
                 res[key][val[1: eq]] = val[eq + 1: -1]
             else:
@@ -337,8 +376,10 @@ def parse_inf_file(f):
             key, val = line.split(' = ', maxsplit=1)
             val = val.strip()
             parse_param(key, val)
+        elif line.endswith(' =\n'):
+            continue
         else:
-            raise RuntimeError("Unknown param " + line)
+            raise RuntimeError(f"Unknown param '{line}'")
     return res
 
 
@@ -380,6 +421,7 @@ parser.add_argument('--source-file', default='solution.*')
 parser.add_argument('--run-cmd', default='./solution')
 parser.add_argument('--checker', default='cmp')
 parser.add_argument('--interactor', required=False)
+parser.add_argument('--initializer', required=False)
 parser.add_argument('--may-fail-local', nargs='+', default=[])
 parser.add_argument('--user', required=False)
 args = parser.parse_args()
@@ -405,7 +447,7 @@ for cnt in range(retests_amount):
         if not ans.is_file() and not args.prepare_answers:
             raise RuntimeError("No answer for test " + test.name)
         res = run_solution(test, ans, inf, args.run_cmd, meta.get('params', ''), args.output_file, meta.get('environ'),
-                        args.interactor, args.user, meta, is_pipeline)
+                           args.interactor, args.initializer, args.user, meta, is_pipeline)
         if not args.prepare_answers:
             try:
                 res_checker(res, ans, args.checker)
