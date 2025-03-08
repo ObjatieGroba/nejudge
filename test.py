@@ -431,7 +431,8 @@ retests_amount = int(os.environ.get('EJ_RETESTS_AMOUNT', 1))
 
 if is_pipeline:
     args.may_fail_local = []
-    # args.user = 'ejexec'
+else:
+    args.user = None
 
 check_style(args.source_file, is_pipeline)
 
