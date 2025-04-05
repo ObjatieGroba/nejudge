@@ -282,8 +282,6 @@ def create_run_dir(original: Path, dst: Path = Path('run')) -> Path:
 
 
 def relative_path(run_folder: Path, path: Path) -> str:
-    print(run_folder, run_folder.absolute())
-    print(path, path.absolute())
     path = path.absolute()
     parent_cnt = 0
     while not path.is_relative_to(run_folder):
@@ -313,6 +311,9 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         cmd = f'sudo -E -u {user} ' + cmd
     full_cmd = shlex.split(cmd)
     full_cmd[0] = relative_path(run_path, Path(full_cmd[0]))
+    for i in range(len(full_cmd)):
+        if full_cmd[i].startswith('./'):
+            full_cmd[i] = relative_path(run_path, Path(full_cmd[i]))
     print(shlex.join(full_cmd), flush=True)
     env = os.environ
     if env_add:
