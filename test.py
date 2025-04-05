@@ -17,7 +17,7 @@ from typing import Optional, Tuple
 import difflib
 import json
 import yaml
-
+import shutil
 
 nejudge_path = Path(os.path.realpath(__file__)).parent
 
@@ -231,16 +231,25 @@ def check_exit_code(code: int, pat: str) -> bool:
 
 
 class Initializer:
-    def __init__(self, cmd: tp.Optional[str], input_file, correct_file, inf_file, env):
+    def __init__(self, cmd: tp.Optional[str], input_file: Path, correct_file: Path, inf_file: Path, env,
+                 run_path: tp.Optional[Path]):
         self.cmd = shlex.split(cmd) if cmd else None
         self.input_file = input_file
         self.correct_file = correct_file
         self.inf_file = inf_file
         self.env = env
+        self.run_path = run_path
+        self.original_path: tp.Optional[str] = None
 
     def __enter__(self):
+        if self.run_path is not None:
+            if self.original_path is not None:
+                raise RuntimeError('Original path exists')
+            self.original_path = os.getcwd()
+            os.chdir(str(self.run_path))
         if self.cmd:
-            p = subprocess.Popen(self.cmd + ['start', str(self.input_file), str(self.correct_file), str(self.inf_file)],
+            p = subprocess.Popen(self.cmd + ['start', str(self.input_file.absolute()),
+                                             str(self.correct_file.absolute()), str(self.inf_file.absolute())],
                                  shell=False, env=self.env)
             p.communicate()
             if p.returncode != 0:
@@ -248,20 +257,51 @@ class Initializer:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.original_path is not None:
+            os.chdir(str(self.original_path))
+            self.original_path = None
         if self.cmd:
-            p = subprocess.Popen(self.cmd + ['stop', str(self.input_file), str(self.correct_file), str(self.inf_file)],
+            p = subprocess.Popen(self.cmd + ['stop', str(self.input_file.absolute()),
+                                             str(self.correct_file.absolute()), str(self.inf_file.absolute())],
                                  shell=False, env=self.env)
             p.communicate()
             if p.returncode != 0:
                 print(f"WARN: Failed to run initializer stop {p.returncode}")
 
 
+def create_run_dir(original: Path, dst: Path = Path('run')) -> Path:
+    try:
+        shutil.rmtree(dst)
+    except:
+        pass
+    if original.exists():
+        shutil.copytree(original, dst)
+    else:
+        dst.mkdir()
+    return dst.absolute()
+
+
+def relative_path(run_folder: Path, path: Path) -> str:
+    path = path.absolute()
+    parent_cnt = 0
+    while not path.is_relative_to(run_folder):
+        run_folder = run_folder.parent
+        parent_cnt += 1
+    return '../' * parent_cnt + str(path.relative_to(run_folder))
+
+
 def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str, params: str,
                  output_file: tp.Optional[str], env_add: tp.Optional[tp.Dict[str, str]],
                  interactor: tp.Optional[str], initializer: tp.Optional[str], user: tp.Optional[str],
-                 meta: tp.Dict[str, tp.Any], is_pipeline: bool) -> bytes:
-    params = params.replace('input.txt', str(input_file))
-    cmd = cmd.replace('input.txt', str(input_file))
+                 meta: tp.Dict[str, tp.Any], is_pipeline: bool, dirent: Path, input_filename: str) -> bytes:
+    input_file = input_file.absolute()
+    correct_file = correct_file.absolute()
+    inf_file = inf_file.absolute()
+
+    run_path = create_run_dir(dirent)
+    params = params.replace(input_filename, relative_path(run_path, input_file))
+    cmd = cmd.replace(input_filename, relative_path(run_path, input_file))
+
     cmd = cmd.replace('test_name', 'tests/' + input_file.name.removesuffix('.dat'))
     if 'params' in cmd:
         cmd = f'{cmd.replace("params", str(params))}'.strip()
@@ -269,15 +309,17 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         cmd = f'{cmd} {params}'.strip()
     if user:
         cmd = f'sudo -E -u {user} ' + cmd
-    print(cmd, flush=True)
+    full_cmd = shlex.split(cmd)
+    full_cmd[0] = relative_path(run_path, Path(full_cmd[0]))
+    print(shlex.join(full_cmd), flush=True)
     env = os.environ
     if env_add:
         env = env.copy()
         env.update(env_add)
     before_children_user = os.times().children_user
-    with Initializer(initializer, input_file, output_file, inf_file, env):
+    with Initializer(initializer, input_file, correct_file, inf_file, env, run_path):
         if interactor:
-            p = subprocess.Popen(shlex.split(cmd), stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=False, env=env)
+            p = subprocess.Popen(full_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=False, env=env)
             pid = p.pid
             if user:
                 try:
@@ -285,7 +327,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
                 except Exception:
                     print("Failed to start solution", p.returncode)
                     raise
-            int_cmd = [interactor, str(input_file),
+            int_cmd = [relative_path(run_path, Path(interactor)), str(input_file),
                        'output', str(correct_file),
                        str(pid), str(inf_file) if inf_file.is_file() else '']
             print(shlex.join(int_cmd), flush=True)
@@ -306,17 +348,17 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
                 res = f.read()
         else:
             with open(input_file) as fin:
-                p = subprocess.Popen(shlex.split(cmd), stdin=fin, stdout=subprocess.PIPE, shell=False, env=env)
+                p = subprocess.Popen(full_cmd, stdin=fin, stdout=subprocess.PIPE, shell=False, env=env)
                 res, _ = p.communicate()
-    if not check_exit_code(p.returncode, meta.get('exit_code', '0')):
-        print(res)
-        raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
-    if output_file:
-        if res:
-            raise RuntimeError(f'Unexpected output on test {input_file}')
-        with open(output_file, 'rb') as f:
-            res = f.read()
-        os.remove(output_file)
+        if not check_exit_code(p.returncode, meta.get('exit_code', '0')):
+            print(res)
+            raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
+        if output_file:
+            if res:
+                raise RuntimeError(f'Unexpected output on test {input_file}')
+            with open(output_file, 'rb') as f:
+                res = f.read()
+            os.remove(output_file)
     after_children_user = os.times().children_user
     real_time_limit = meta.get('time_limit', float(os.environ.get('EJUDGE_REAL_TIME_LIMIT_MS', 1.)))
     if after_children_user - before_children_user > real_time_limit:
@@ -424,6 +466,7 @@ parser.add_argument('--interactor', required=False)
 parser.add_argument('--initializer', required=False)
 parser.add_argument('--may-fail-local', nargs='+', default=[])
 parser.add_argument('--user', required=False)
+parser.add_argument('--input-filename', default='input.txt')
 args = parser.parse_args()
 
 is_pipeline = bool(os.environ.get('GITLAB_CI', None))
@@ -441,6 +484,7 @@ for cnt in range(retests_amount):
     for test in sorted(Path('tests').glob('*.dat')):
         inf = Path(str(test).removesuffix('.dat') + '.inf')
         ans = Path(str(test).removesuffix('.dat') + '.ans')
+        dirent = Path(str(test).removesuffix('.dat') + '.dir')
         meta = {}
         if inf.is_file():
             with open(inf) as f:
@@ -448,7 +492,7 @@ for cnt in range(retests_amount):
         if not ans.is_file() and not args.prepare_answers:
             raise RuntimeError("No answer for test " + test.name)
         res = run_solution(test, ans, inf, args.run_cmd, meta.get('params', ''), args.output_file, meta.get('environ'),
-                           args.interactor, args.initializer, args.user, meta, is_pipeline)
+                           args.interactor, args.initializer, args.user, meta, is_pipeline, dirent, args.input_filename)
         if not args.prepare_answers:
             try:
                 res_checker(res, ans, args.checker)
