@@ -234,6 +234,8 @@ class Initializer:
     def __init__(self, cmd: tp.Optional[str], input_file: Path, correct_file: Path, inf_file: Path, env,
                  run_path: tp.Optional[Path]):
         self.cmd = shlex.split(cmd) if cmd else None
+        if self.cmd:
+            self.cmd[0] = str(Path(self.cmd[0]).absolute())
         self.input_file = input_file
         self.correct_file = correct_file
         self.inf_file = inf_file
