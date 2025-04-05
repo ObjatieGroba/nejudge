@@ -312,7 +312,6 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
     if user:
         cmd = f'sudo -E -u {user} ' + cmd
     full_cmd = shlex.split(cmd)
-    full_cmd[0] = relative_path(run_path, Path(full_cmd[0]))
     for i in range(len(full_cmd)):
         if full_cmd[i].startswith('./'):
             full_cmd[i] = relative_path(run_path, Path(full_cmd[i]))
