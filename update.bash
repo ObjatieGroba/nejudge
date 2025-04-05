@@ -1,3 +1,5 @@
 #!/bin/bash
 
-git pull origin master --rebase
+if [[ -z "$NEJUDGE_NOUPDATE" ]]; then
+  git pull origin master --rebase
+fi
