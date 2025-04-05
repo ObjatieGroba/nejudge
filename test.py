@@ -282,6 +282,8 @@ def create_run_dir(original: Path, dst: Path = Path('run')) -> Path:
 
 
 def relative_path(run_folder: Path, path: Path) -> str:
+    print(run_folder, run_folder.absolute())
+    print(path, path.absolute())
     path = path.absolute()
     parent_cnt = 0
     while not path.is_relative_to(run_folder):
@@ -317,6 +319,8 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         env = env.copy()
         env.update(env_add)
     before_children_user = os.times().children_user
+    if interactor:
+        interactor = Path(interactor).absolute()
     with Initializer(initializer, input_file, correct_file, inf_file, env, run_path):
         if interactor:
             p = subprocess.Popen(full_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=False, env=env)
@@ -327,7 +331,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
                 except Exception:
                     print("Failed to start solution", p.returncode)
                     raise
-            int_cmd = [relative_path(run_path, Path(interactor)), str(input_file),
+            int_cmd = [relative_path(run_path, interactor), str(input_file),
                        'output', str(correct_file),
                        str(pid), str(inf_file) if inf_file.is_file() else '']
             print(shlex.join(int_cmd), flush=True)
