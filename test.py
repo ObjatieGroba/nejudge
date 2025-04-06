@@ -370,9 +370,17 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         interactor = Path(interactor).absolute()
     if checker.startswith('./'):
         checker = Path(checker).absolute()
+    popen_args = {
+        'stdin': subprocess.PIPE,
+        'stdout': subprocess.PIPE,
+        'shell': False,
+        'env': env,
+    }
+    if meta.get('check_stderr', False):
+        popen_args['stderr'] = popen_args.pop('stdout')
     with Initializer(initializer, input_file, correct_file, inf_file, env, run_path):
         if interactor:
-            p = subprocess.Popen(full_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=False, env=env)
+            p = subprocess.Popen(full_cmd, **popen_args)
             pid = p.pid
             if user:
                 try:
@@ -386,7 +394,9 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
             print(shlex.join(int_cmd), flush=True)
             interactor_env = env.copy()
             interactor_env.update(meta.get('interactor_env', {}))
-            i = subprocess.Popen(int_cmd, stdin=p.stdout.fileno(), stdout=p.stdin.fileno(), shell=False, env=interactor_env)
+            i = subprocess.Popen(int_cmd, stdin=p.stdout.fileno(),
+                                 stdout=p.stderr.fileno() if meta.get('check_stderr', False) else p.stdin.fileno(),
+                                 shell=False, env=interactor_env)
             p.stdout.close()
             p.stdin.close()
             p.wait()
@@ -401,8 +411,10 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
                 res = f.read()
         else:
             with open(input_file) as fin:
-                p = subprocess.Popen(full_cmd, stdin=fin, stdout=subprocess.PIPE, shell=False, env=env)
-                res, _ = p.communicate()
+                p = subprocess.Popen(full_cmd, **popen_args)
+                res, err = p.communicate()
+                if meta.get('check_stderr', False):
+                    res = err
         if not check_exit_code(p.returncode, meta.get('exit_code', '0')):
             print(res)
             raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
@@ -489,7 +501,7 @@ def parse_inf_file(f):
         else:
             raise RuntimeError(f"Unknown inf param {key} = {val}")
 
-    flags = {'enable_subst'}
+    flags = {'enable_subst', 'check_stderr'}
 
     for line in f.readlines():
         if not line.strip():
