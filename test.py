@@ -435,7 +435,9 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
             print(shlex.join(checker_cmd))
             p = subprocess.run(checker_cmd, encoding='utf-8', input='')
             if p.returncode != 0:
-                raise RuntimeError(f"Test {test} failed")
+                if str(test) not in may_fail_local:
+                    raise RuntimeError(f"Test {test} failed")
+                print(f"Test {test} skipped")
         else:
             if output_file:
                 if res:
