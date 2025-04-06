@@ -419,7 +419,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
                 with open(output_file, 'rb') as f:
                     res = f.read()
             try:
-                res_checker(res, ans, checker)
+                res_checker(res, correct_file, checker)
             except:
                 if str(test) in may_fail_local:
                     print(f"Test {test} skipped")
