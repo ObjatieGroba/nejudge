@@ -366,6 +366,8 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
     before_children_user = os.times().children_user
     if interactor:
         interactor = Path(interactor).absolute()
+    if checker.startswith('./'):
+        checker = Path(checker).absolute()
     with Initializer(initializer, input_file, correct_file, inf_file, env, run_path):
         if interactor:
             p = subprocess.Popen(full_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=False, env=env)
@@ -402,7 +404,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         if not check_exit_code(p.returncode, meta.get('exit_code', '0')):
             print(res)
             raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
-        if checker.startswith('./'):
+        if checker.startswith('/'):
             if res:
                 raise RuntimeError(f'Unsupported')
             checker_cmd = [checker, input_file, output_file or '', correct_file]
