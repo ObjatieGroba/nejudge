@@ -407,9 +407,14 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
             print(res)
             raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
         if isinstance(checker, Path):
+            if output_file:
+                if res:
+                    raise RuntimeError(f'Unsupported')
             if res:
-                raise RuntimeError(f'Unsupported')
-            checker_cmd = [str(checker), str(input_file), output_file or '', str(correct_file)]
+                output_file = 'fake-output.txt'
+                with open(output_file, 'wb') as f:
+                    f.write(res)
+            checker_cmd = [str(checker), str(input_file), output_file, str(correct_file)]
             p = subprocess.run(checker_cmd, encoding='utf-8', input='')
             if p.returncode != 0:
                 print(shlex.join(checker_cmd))

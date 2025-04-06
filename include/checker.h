@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <ctype.h>
 #include <errno.h>
 
 
@@ -156,6 +157,82 @@ checker_read_file_f(FILE *f, char **out, size_t *out_len)
     }
     if (out) *out = (char*)buf;
     if (out_len) *out_len = buf_len;
+}
+
+void
+checker_read_file_by_line(FILE* f,
+                          char ***out_lines,
+                          size_t *out_lines_num)
+{
+    char **lb_v = 0;
+    size_t lb_a = 0, lb_u = 0;
+    unsigned char *b_v = 0;
+    size_t b_a = 0, b_u = 0;
+    int c;
+
+    lb_a = 128;
+    lb_v = (char **) calloc(lb_a, sizeof(lb_v[0]));
+    lb_v[0] = NULL;
+
+    b_a = 1024;
+    b_v = (unsigned char *) malloc(b_a);
+    b_v[0] = 0;
+
+    while ((c = getc(f)) != EOF) {
+        if (!c)  fatal_CF("\\0 byte in file");
+        if (b_u + 1 >= b_a) {
+            b_v = (unsigned char*) realloc(b_v, (b_a *= 2) * sizeof(b_v[0]));
+        }
+        b_v[b_u++] = c;
+        b_v[b_u] = 0;
+        if (c != '\n') continue;
+
+        if (lb_u + 1 >= lb_a) {
+            lb_a *= 2;
+            lb_v = (char **) realloc(lb_v, lb_a * sizeof(lb_v[0]));
+        }
+        lb_v[lb_u++] = strdup((char*)b_v);
+        lb_v[lb_u] = NULL;
+        b_u = 0;
+        b_v[b_u] = 0;
+    }
+    if (ferror(f)) {
+        fatal_CF("Input error from file");
+    }
+    if (b_u > 0) {
+        if (lb_u + 1 >= lb_a) {
+            lb_v = realloc(lb_v, (lb_a *= 2) * sizeof(lb_v[0]));
+        }
+        lb_v[lb_u++] = strdup((char*)b_v);
+        lb_v[lb_u] = NULL;
+    }
+
+    if (out_lines_num) *out_lines_num = lb_u;
+    if (out_lines) *out_lines = lb_v;
+
+    free(b_v);
+}
+
+void
+checker_normalize_file(char **lines, size_t *lines_num)
+{
+    int i;
+    size_t len;
+    char *p;
+
+    for (i = 0; i < *lines_num; i++) {
+        if (!(p = lines[i])) fatal_CF("lines[%d] is NULL!", i);
+        len = strlen(p);
+        while (len > 0 && isspace(p[len - 1])) p[--len] = 0;
+    }
+
+    i = *lines_num;
+    while (i > 0 && !lines[i - 1][0]) {
+        i--;
+        free(lines[i]);
+        lines[i] = 0;
+    }
+    *lines_num = i;
 }
 
 int main(int argc, char **argv) {
