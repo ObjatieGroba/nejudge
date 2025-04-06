@@ -408,11 +408,9 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
             if res:
                 raise RuntimeError(f'Unsupported')
             checker_cmd = [str(checker), str(input_file), output_file or '', str(correct_file)]
-            p = subprocess.run(checker_cmd, encoding='utf-8')
+            p = subprocess.run(checker_cmd, encoding='utf-8', input='')
             if p.returncode != 0:
                 print(shlex.join(checker_cmd))
-                print(p.stdout)
-                print(p.stderr)
                 raise RuntimeError(f"Test {test} failed")
         else:
             if output_file:
