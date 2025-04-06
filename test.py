@@ -533,7 +533,7 @@ for cnt in range(retests_amount):
             raise RuntimeError("No answer for test " + test.name)
         res = run_solution(test, ans, inf, args.run_cmd, meta.get('params', ''), args.output_file, meta.get('environ'),
                            args.interactor, args.initializer, args.user, meta, is_pipeline, dirent, args.input_filename,
-                           args.checker)
+                           args.checker, args.may_fail_local)
         if args.prepare_answers:
             with open(ans, 'wb') as fout:
                 fout.write(res)
