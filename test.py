@@ -350,6 +350,8 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
 
     run_path = create_run_dir(dirent)
     params = params.replace(input_filename, relative_path(run_path, input_file))
+    if meta.get('enable_subst', False):
+        params = params.replace('${problem.problem_dir}', os.getcwd())
     cmd = cmd.replace(input_filename, relative_path(run_path, input_file))
 
     cmd = cmd.replace('test_name', 'tests/' + input_file.name.removesuffix('.dat'))
@@ -482,6 +484,8 @@ def parse_inf_file(f):
         else:
             raise RuntimeError(f"Unknown inf param {key} = {val}")
 
+    flags = {'enable_subst'}
+
     for line in f.readlines():
         if not line.strip():
             continue
@@ -491,8 +495,10 @@ def parse_inf_file(f):
             parse_param(key, val)
         elif line.endswith(' =\n'):
             continue
+        elif line.strip() in flags:
+            res[line.strip()] = True
         else:
-            raise RuntimeError(f"Unknown param '{line}'")
+            raise RuntimeError(f"Unknown param '{line.strip()}'")
     return res
 
 
