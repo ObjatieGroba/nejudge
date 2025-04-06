@@ -308,10 +308,42 @@ def fix_command_path(cmd: list[str], run_path: Path, extra_params: list[str]) ->
     return full_cmd
 
 
+def res_checker(res: bytes, ans: Path, checker: str):
+    with open(ans, 'rb') as expected:
+        to_cmp = expected.read()
+    if checker == 'cmp':
+        diff = list(difflib.diff_bytes(difflib.unified_diff, to_cmp.split(b'\n'), res.split(b'\n')))
+        if diff:
+            for line in diff:
+                sys.stdout.write(line.decode(errors='replace'))
+                if not line.endswith(b'\n'):
+                    print()
+            raise RuntimeError(f"Output missmatched on test {test}. Check \"output\" file")
+    elif checker == 'sorted-lines':
+        diff = list(difflib.diff_bytes(difflib.unified_diff, sorted(to_cmp.strip().split(b'\n')), sorted(res.strip().split(b'\n'))))
+        if diff:
+            for line in diff:
+                sys.stdout.write(line.decode(errors='replace'))
+                if not line.endswith(b'\n'):
+                    print()
+            raise RuntimeError(f"Output missmatched on test {test}. Check \"output\" file")
+    elif checker == 'cmp-double':
+        eps = float(os.environ.get('EPS', 0))
+        res_f = float(res.decode().strip())
+        ans_f = float(to_cmp.decode().strip())
+        if abs(res_f - ans_f) > eps:
+            raise RuntimeError(f'{res} != {ans_f} for EPS={eps}')
+    elif checker == 'ignore':
+        return
+    else:
+        raise RuntimeError("Unknown checker " + checker)
+
+
 def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str, params: str,
                  output_file: tp.Optional[str], env_add: tp.Optional[tp.Dict[str, str]],
                  interactor: tp.Optional[str], initializer: tp.Optional[str], user: tp.Optional[str],
-                 meta: tp.Dict[str, tp.Any], is_pipeline: bool, dirent: Path, input_filename: str) -> bytes:
+                 meta: tp.Dict[str, tp.Any], is_pipeline: bool, dirent: Path, input_filename: str,
+                 checker: str, may_fail_local: list[str]) -> bytes:
     input_file = input_file.absolute()
     correct_file = correct_file.absolute()
     inf_file = inf_file.absolute()
@@ -321,9 +353,11 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
     cmd = cmd.replace(input_filename, relative_path(run_path, input_file))
 
     cmd = cmd.replace('test_name', 'tests/' + input_file.name.removesuffix('.dat'))
-    full_cmd = fix_command_path(shlex.split(cmd), run_path, shlex.split(params))
+    full_cmd_origin = fix_command_path(shlex.split(cmd), run_path, shlex.split(params))
     if user:
-        full_cmd = ['sudo', '-E', '-u', user] + full_cmd
+        full_cmd = ['sudo', '-E', '-u', user] + full_cmd_origin
+    else:
+        full_cmd = full_cmd_origin
     print(shlex.join(full_cmd), flush=True)
     env = os.environ
     if env_add:
@@ -368,12 +402,34 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         if not check_exit_code(p.returncode, meta.get('exit_code', '0')):
             print(res)
             raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
-        if output_file:
+        if checker.startswith('./'):
             if res:
-                raise RuntimeError(f'Unexpected output on test {input_file}')
-            with open(output_file, 'rb') as f:
-                res = f.read()
+                raise RuntimeError(f'Unsupported')
+            checker_cmd = [checker, input_file, output_file or '', correct_file]
+            p = subprocess.run(checker_cmd, encoding='utf-8')
+            if p.returncode != 0:
+                print(shlex.join(checker_cmd))
+                print(p.stdout)
+                print(p.stderr)
+                raise RuntimeError(f"Test {test} failed")
+        else:
+            if output_file:
+                if res:
+                    raise RuntimeError(f'Unexpected output on test {input_file}')
+                with open(output_file, 'rb') as f:
+                    res = f.read()
+            try:
+                res_checker(res, ans, checker)
+            except:
+                if str(test) in may_fail_local:
+                    print(f"Test {test} skipped")
+                else:
+                    with open('output', 'wb') as f:
+                        f.write(res)
+                    raise
+        if output_file:
             os.remove(output_file)
+
     after_children_user = os.times().children_user
     real_time_limit = meta.get('time_limit', float(os.environ.get('EJUDGE_REAL_TIME_LIMIT_MS', 1.)))
     if after_children_user - before_children_user > real_time_limit:
@@ -440,37 +496,6 @@ def parse_inf_file(f):
     return res
 
 
-def res_checker(res: bytes, ans: Path, checker: str):
-    with open(ans, 'rb') as expected:
-        to_cmp = expected.read()
-    if checker == 'cmp':
-        diff = list(difflib.diff_bytes(difflib.unified_diff, to_cmp.split(b'\n'), res.split(b'\n')))
-        if diff:
-            for line in diff:
-                sys.stdout.write(line.decode(errors='replace'))
-                if not line.endswith(b'\n'):
-                    print()
-            raise RuntimeError(f"Output missmatched on test {test}. Check \"output\" file")
-    elif checker == 'sorted-lines':
-        diff = list(difflib.diff_bytes(difflib.unified_diff, sorted(to_cmp.strip().split(b'\n')), sorted(res.strip().split(b'\n'))))
-        if diff:
-            for line in diff:
-                sys.stdout.write(line.decode(errors='replace'))
-                if not line.endswith(b'\n'):
-                    print()
-            raise RuntimeError(f"Output missmatched on test {test}. Check \"output\" file")
-    elif checker == 'cmp-double':
-        eps = float(os.environ.get('EPS', 0))
-        res_f = float(res.decode().strip())
-        ans_f = float(to_cmp.decode().strip())
-        if abs(res_f - ans_f) > eps:
-            raise RuntimeError(f'{res} != {ans_f} for EPS={eps}')
-    elif checker == 'ignore':
-        return
-    else:
-        raise RuntimeError("Unknown checker " + checker)
-
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--prepare-answers', action='store_true')
 parser.add_argument('--output-file', required=False)
@@ -507,18 +532,9 @@ for cnt in range(retests_amount):
         if not ans.is_file() and not args.prepare_answers:
             raise RuntimeError("No answer for test " + test.name)
         res = run_solution(test, ans, inf, args.run_cmd, meta.get('params', ''), args.output_file, meta.get('environ'),
-                           args.interactor, args.initializer, args.user, meta, is_pipeline, dirent, args.input_filename)
-        if not args.prepare_answers:
-            try:
-                res_checker(res, ans, args.checker)
-            except:
-                if str(test) in args.may_fail_local:
-                    print(f"Test {test} skipped")
-                else:
-                    with open('output', 'wb') as f:
-                        f.write(res)
-                    raise
-        else:
+                           args.interactor, args.initializer, args.user, meta, is_pipeline, dirent, args.input_filename,
+                           args.checker)
+        if args.prepare_answers:
             with open(ans, 'wb') as fout:
                 fout.write(res)
 
