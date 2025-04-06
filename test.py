@@ -536,6 +536,12 @@ for cnt in range(retests_amount):
         inf = Path(str(test).removesuffix('.dat') + '.inf')
         ans = Path(str(test).removesuffix('.dat') + '.ans')
         dirent = Path(str(test).removesuffix('.dat') + '.dir')
+        static = Path('static')
+        if static.is_dir():
+            if dirent.is_dir():
+                raise RuntimeError("Unsupported")
+            dirent = static
+
         meta = {}
         if inf.is_file():
             with open(inf) as f:
