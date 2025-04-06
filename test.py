@@ -407,7 +407,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         if isinstance(checker, Path):
             if res:
                 raise RuntimeError(f'Unsupported')
-            checker_cmd = [checker, input_file, output_file or '', correct_file]
+            checker_cmd = [str(checker), input_file, output_file or '', correct_file]
             p = subprocess.run(checker_cmd, encoding='utf-8')
             if p.returncode != 0:
                 print(shlex.join(checker_cmd))
