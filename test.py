@@ -404,7 +404,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         if not check_exit_code(p.returncode, meta.get('exit_code', '0')):
             print(res)
             raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
-        if checker.startswith('/'):
+        if isinstance(checker, Path):
             if res:
                 raise RuntimeError(f'Unsupported')
             checker_cmd = [checker, input_file, output_file or '', correct_file]
