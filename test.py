@@ -292,6 +292,22 @@ def relative_path(run_folder: Path, path: Path) -> str:
     return '../' * parent_cnt + str(path.relative_to(run_folder))
 
 
+def fix_command_path(cmd: list[str], run_path: Path, extra_params: list[str]) -> list[str]:
+    full_cmd = []
+    any_params = False
+    for param in cmd:
+        if param.startswith('./'):
+            full_cmd.append(relative_path(run_path, Path(param)))
+        elif param == 'params':
+            full_cmd += extra_params
+            any_params = True
+        else:
+            full_cmd.append(param)
+    if not any_params:
+        full_cmd += extra_params
+    return full_cmd
+
+
 def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str, params: str,
                  output_file: tp.Optional[str], env_add: tp.Optional[tp.Dict[str, str]],
                  interactor: tp.Optional[str], initializer: tp.Optional[str], user: tp.Optional[str],
@@ -305,16 +321,9 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
     cmd = cmd.replace(input_filename, relative_path(run_path, input_file))
 
     cmd = cmd.replace('test_name', 'tests/' + input_file.name.removesuffix('.dat'))
-    if 'params' in cmd:
-        cmd = f'{cmd.replace("params", str(params))}'.strip()
-    else:
-        cmd = f'{cmd} {params}'.strip()
+    full_cmd = fix_command_path(shlex.split(cmd), run_path, shlex.split(params))
     if user:
-        cmd = f'sudo -E -u {user} ' + cmd
-    full_cmd = shlex.split(cmd)
-    for i in range(len(full_cmd)):
-        if full_cmd[i].startswith('./'):
-            full_cmd[i] = relative_path(run_path, Path(full_cmd[i]))
+        full_cmd = ['sudo', '-E', '-u', user] + full_cmd
     print(shlex.join(full_cmd), flush=True)
     env = os.environ
     if env_add:
