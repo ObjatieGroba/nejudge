@@ -162,7 +162,8 @@ checker_read_file_f(FILE *f, char **out, size_t *out_len)
 void
 checker_read_file_by_line(FILE* f,
                           char ***out_lines,
-                          size_t *out_lines_num)
+                          size_t *out_lines_num,
+                          const char *name)
 {
     char **lb_v = 0;
     size_t lb_a = 0, lb_u = 0;
@@ -197,7 +198,7 @@ checker_read_file_by_line(FILE* f,
         b_v[b_u] = 0;
     }
     if (ferror(f)) {
-        fatal_CF("Input error from file");
+        fatal_CF("Input error from file %s", name);
     }
     if (b_u > 0) {
         if (lb_u + 1 >= lb_a) {

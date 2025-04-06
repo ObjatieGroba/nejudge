@@ -410,14 +410,14 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
             if output_file:
                 if res:
                     raise RuntimeError(f'Unsupported')
-            if res:
+            else:
                 output_file = 'fake-output.txt'
                 with open(output_file, 'wb') as f:
                     f.write(res)
             checker_cmd = [str(checker), str(input_file), output_file, str(correct_file)]
+            print(shlex.join(checker_cmd))
             p = subprocess.run(checker_cmd, encoding='utf-8', input='')
             if p.returncode != 0:
-                print(shlex.join(checker_cmd))
                 raise RuntimeError(f"Test {test} failed")
         else:
             if output_file:
