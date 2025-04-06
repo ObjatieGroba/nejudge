@@ -377,6 +377,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         'env': env,
     }
     if meta.get('check_stderr', False):
+        print('User stderr except of stdout')
         popen_args['stderr'] = popen_args.pop('stdout')
     with Initializer(initializer, input_file, correct_file, inf_file, env, run_path):
         if interactor:
@@ -411,6 +412,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
                 res = f.read()
         else:
             with open(input_file) as fin:
+                popen_args['stdin'] = fin
                 p = subprocess.Popen(full_cmd, **popen_args)
                 res, err = p.communicate()
                 if meta.get('check_stderr', False):
