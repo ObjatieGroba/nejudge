@@ -333,9 +333,14 @@ def res_checker(res: bytes, ans: Path, checker: str):
                     print()
             raise RuntimeError(f"Output missmatched on test {test}. Check \"output\" file")
     elif checker == 'cmp-double':
+        def parse_double(data: bytes) -> float:
+            res = data.decode().strip()
+            if res.startswith('0x'):
+                return float.fromhex(res)
+            return float(res)
         eps = float(os.environ.get('EPS', 0))
-        res_f = float(res.decode().strip())
-        ans_f = float(to_cmp.decode().strip())
+        res_f = parse_double(res)
+        ans_f = parse_double(to_cmp)
         if abs(res_f - ans_f) > eps:
             raise RuntimeError(f'{res} != {ans_f} for EPS={eps}')
     elif checker == 'ignore':
