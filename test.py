@@ -192,7 +192,7 @@ def run_clang_format(source_file: str, format_file: str, ci: bool):
 def check_style(source_file_wildcard: str, ci: bool):
     for source_file in glob.glob(source_file_wildcard):
         if source_file.endswith('.bak'):
-            pass
+            continue
         if not os.path.isfile(source_file):
             print("WARNING:", source_file, "is not valid source file")
             continue
