@@ -217,7 +217,7 @@ def check_style(source_file_wildcard: str, ci: bool):
                 value = value.replace(' ', r'\s+')
                 regex_checks_passed &= check(source_file, value, check_ban, name=key[len('EJ_BAN_BY_REGEX_BAN_'):], reason=reason)
         if not regex_checks_passed:
-            raise RuntimeError("Regex check failed")
+            raise RuntimeError(f"Regex check failed in file {source_file}")
 
 
 def get_child_pid(pid: int) -> int:
