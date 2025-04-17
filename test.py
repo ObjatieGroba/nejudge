@@ -36,7 +36,7 @@ def check_req(regex_filter, text, name, reason=None) -> bool:
     if not found:
         pre_descr = f' {name.lower()}' if not reason else ''
         post_descr = f'\nReason: {reason}' if reason else ''
-        print(f"Did not find required sequence{pre_descr} {repr(regex_filter.pattern)}{post_descr}\n")
+        print(f"Did not find required sequence {pre_descr} {repr(regex_filter.pattern)} {post_descr}\n")
         return False
     return True
 
@@ -111,7 +111,10 @@ def check(source_file, regex_str, check_func, **extra) -> bool:
     flags |= re.IGNORECASE
     flags |= re.DOTALL
     regex_filter = re.compile(regex_str, flags)
-    return check_func(regex_filter, text, **extra)
+    try:
+        return check_func(regex_filter, text, **extra)
+    except Exception as e:
+        raise RuntimeError(f'Check failed int file {source_file}') from e
 
 
 def split_reason(regex: str) -> Tuple[str, Optional[str]]:
