@@ -343,6 +343,11 @@ def res_checker(res: bytes, ans: Path, checker: str):
         ans_f = parse_double(to_cmp)
         if abs(res_f - ans_f) > eps:
             raise RuntimeError(f'{res} != {ans_f} for EPS={eps}')
+    elif checker == 'ignore-spaces':
+        res_s = res.decode().split()
+        cmp_s = to_cmp.decode().split()
+        if res_s != cmp_s:
+            raise RuntimeError(f"Output missmatched on test {test}. Check \"output\" file")
     elif checker == 'ignore':
         return
     else:
