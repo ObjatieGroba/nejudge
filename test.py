@@ -358,7 +358,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
                  output_file: tp.Optional[str], env_add: tp.Optional[tp.Dict[str, str]],
                  interactor: tp.Optional[str], initializer: tp.Optional[str], user: tp.Optional[str],
                  meta: tp.Dict[str, tp.Any], is_pipeline: bool, dirent: Path, input_filename: str,
-                 checker: str, may_fail_local: list[str]) -> bytes:
+                 checker: str, may_fail_local: list[str], skip_tests: bool) -> bytes:
     input_file = input_file.absolute()
     correct_file = correct_file.absolute()
     inf_file = inf_file.absolute()
@@ -438,36 +438,37 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
                 raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
             print(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
             print('May fail local. Skipped')
-        if isinstance(checker, Path):
-            if output_file:
-                if res:
-                    raise RuntimeError(f'Unsupported')
-            else:
-                output_file = 'fake-output.txt'
-                with open(output_file, 'wb') as f:
-                    f.write(res)
-            checker_cmd = [str(checker), str(input_file), output_file, str(correct_file), str(p.returncode)]
-            print(shlex.join(checker_cmd))
-            p = subprocess.run(checker_cmd, encoding='utf-8', input='')
-            if p.returncode != 0:
-                if str(test) not in may_fail_local:
-                    raise RuntimeError(f"Test {test} failed")
-                print(f"Test {test} skipped")
-        else:
-            if output_file:
-                if res:
-                    raise RuntimeError(f'Unexpected output on test {input_file}')
-                with open(output_file, 'rb') as f:
-                    res = f.read()
-            try:
-                res_checker(res, correct_file, checker)
-            except:
-                if str(test) in may_fail_local:
-                    print(f"Test {test} skipped")
+        if not skip_tests:
+            if isinstance(checker, Path):
+                if output_file:
+                    if res:
+                        raise RuntimeError(f'Unsupported')
                 else:
-                    with open('output', 'wb') as f:
+                    output_file = 'fake-output.txt'
+                    with open(output_file, 'wb') as f:
                         f.write(res)
-                    raise
+                checker_cmd = [str(checker), str(input_file), output_file, str(correct_file), str(p.returncode)]
+                print(shlex.join(checker_cmd))
+                p = subprocess.run(checker_cmd, encoding='utf-8', input='')
+                if p.returncode != 0:
+                    if str(test) not in may_fail_local:
+                        raise RuntimeError(f"Test {test} failed")
+                    print(f"Test {test} skipped")
+            else:
+                if output_file:
+                    if res:
+                        raise RuntimeError(f'Unexpected output on test {input_file}')
+                    with open(output_file, 'rb') as f:
+                        res = f.read()
+                try:
+                    res_checker(res, correct_file, checker)
+                except:
+                    if str(test) in may_fail_local:
+                        print(f"Test {test} skipped")
+                    else:
+                        with open('output', 'wb') as f:
+                            f.write(res)
+                        raise
         if output_file:
             os.remove(output_file)
 
@@ -584,7 +585,7 @@ for cnt in range(retests_amount):
             raise RuntimeError("No answer for test " + test.name)
         res = run_solution(test, ans, inf, args.run_cmd, meta.get('params', ''), args.output_file, meta.get('environ'),
                            args.interactor, args.initializer, args.user, meta, is_pipeline, dirent, args.input_filename,
-                           args.checker, args.may_fail_local)
+                           args.checker, args.may_fail_local, skip_tests=args.prepare_answers)
         if args.prepare_answers:
             with open(ans, 'wb') as fout:
                 fout.write(res)
