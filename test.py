@@ -469,6 +469,12 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
                         with open('output', 'wb') as f:
                             f.write(res)
                         raise
+        else:
+            if output_file:
+                if res:
+                    raise RuntimeError(f'Unexpected output on test {input_file}')
+                with open(output_file, 'rb') as f:
+                    res = f.read()
         if output_file:
             os.remove(output_file)
 
