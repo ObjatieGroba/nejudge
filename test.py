@@ -284,7 +284,7 @@ class Initializer:
                 except:
                     pass
             self.p.communicate()
-            if self.p.returncode != 0:
+            if not self.run_till_end and self.p.returncode != 0:
                 print(f"WARN: Failed to run initializer stop {self.p.returncode}")
 
 
