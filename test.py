@@ -1,3 +1,4 @@
+import signal
 import sys
 from pathlib import Path
 import argparse
@@ -237,7 +238,7 @@ def check_exit_code(code: int, pat: str) -> bool:
 
 class Initializer:
     def __init__(self, cmd: tp.Optional[str], input_file: Path, correct_file: Path, inf_file: Path, env,
-                 run_path: tp.Optional[Path]):
+                 run_path: tp.Optional[Path], run_till_end: bool):
         self.cmd = shlex.split(cmd) if cmd else None
         if self.cmd:
             self.cmd[0] = str(Path(self.cmd[0]).absolute())
@@ -247,6 +248,8 @@ class Initializer:
         self.env = env
         self.run_path = run_path
         self.original_path: tp.Optional[str] = None
+        self.run_till_end = run_till_end
+        self.p = None
 
     def __enter__(self):
         if self.run_path is not None:
@@ -255,12 +258,15 @@ class Initializer:
             self.original_path = os.getcwd()
             os.chdir(str(self.run_path))
         if self.cmd:
-            p = subprocess.Popen(self.cmd + ['start', str(self.input_file.absolute()),
-                                             str(self.correct_file.absolute()), str(self.inf_file.absolute())],
-                                 shell=False, env=self.env)
-            p.communicate()
-            if p.returncode != 0:
-                raise RuntimeError(f"Failed to run initializer start {p.returncode}")
+            self.p = subprocess.Popen(self.cmd + ['start', str(self.input_file.absolute()),
+                                                  str(self.correct_file.absolute()), str(self.inf_file.absolute())],
+                                      shell=False, env=self.env)
+            if not self.run_till_end:
+                self.p.communicate()
+                if self.p.returncode != 0:
+                    raise RuntimeError(f"Failed to run initializer start {self.p.returncode}")
+            else:
+                time.sleep(0.1)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -268,12 +274,18 @@ class Initializer:
             os.chdir(str(self.original_path))
             self.original_path = None
         if self.cmd:
-            p = subprocess.Popen(self.cmd + ['stop', str(self.input_file.absolute()),
-                                             str(self.correct_file.absolute()), str(self.inf_file.absolute())],
-                                 shell=False, env=self.env)
-            p.communicate()
-            if p.returncode != 0:
-                print(f"WARN: Failed to run initializer stop {p.returncode}")
+            if not self.run_till_end:
+                self.p = subprocess.Popen(self.cmd + ['stop', str(self.input_file.absolute()),
+                                                      str(self.correct_file.absolute()), str(self.inf_file.absolute())],
+                                          shell=False, env=self.env)
+            else:
+                try:
+                    self.p.send_signal(signal.SIGINT)
+                except:
+                    pass
+            self.p.communicate()
+            if self.p.returncode != 0:
+                print(f"WARN: Failed to run initializer stop {self.p.returncode}")
 
 
 def create_run_dir(original: Path, dst: Path = Path('run')) -> Path:
@@ -358,7 +370,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
                  output_file: tp.Optional[str], env_add: tp.Optional[tp.Dict[str, str]],
                  interactor: tp.Optional[str], initializer: tp.Optional[str], user: tp.Optional[str],
                  meta: tp.Dict[str, tp.Any], is_pipeline: bool, dirent: Path, input_filename: str,
-                 checker: str, may_fail_local: list[str], skip_tests: bool) -> bytes:
+                 checker: str, may_fail_local: list[str], skip_tests: bool, run_initializer_till_end: bool) -> bytes:
     input_file = input_file.absolute()
     correct_file = correct_file.absolute()
     inf_file = inf_file.absolute()
@@ -394,7 +406,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
     if meta.get('check_stderr', False):
         print('Use stderr instead of stdout')
         popen_args['stderr'] = popen_args.pop('stdout')
-    with Initializer(initializer, input_file, correct_file, inf_file, env, run_path):
+    with Initializer(initializer, input_file, correct_file, inf_file, env, run_path, run_till_end=run_initializer_till_end):
         if interactor:
             p = subprocess.Popen(full_cmd, **popen_args)
             pid = p.pid
@@ -556,6 +568,7 @@ parser.add_argument('--run-cmd', default='./solution')
 parser.add_argument('--checker', default='cmp')
 parser.add_argument('--interactor', required=False)
 parser.add_argument('--initializer', required=False)
+parser.add_argument('--initializer-run-till-end', action='store_true')
 parser.add_argument('--may-fail-local', nargs='+', default=[])
 parser.add_argument('--user', required=False)
 parser.add_argument('--input-filename', default='input.txt')
@@ -591,7 +604,8 @@ for cnt in range(retests_amount):
             raise RuntimeError("No answer for test " + test.name)
         res = run_solution(test, ans, inf, args.run_cmd, meta.get('params', ''), args.output_file, meta.get('environ'),
                            args.interactor, args.initializer, args.user, meta, is_pipeline, dirent, args.input_filename,
-                           args.checker, args.may_fail_local, skip_tests=args.prepare_answers)
+                           args.checker, args.may_fail_local, skip_tests=args.prepare_answers,
+                           run_initializer_till_end=args.initializer_run_till_end)
         if args.prepare_answers:
             with open(ans, 'wb') as fout:
                 fout.write(res)
