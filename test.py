@@ -512,7 +512,25 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
 def parse_inf_file(f):
     res = {
         'time_limit': float(os.environ.get('EJUDGE_REAL_TIME_LIMIT_MS', 1.)),
-    }
+    }  # type: dict[str, tp.Any]
+
+    def parse_env(val: str, env: dict):
+        if not val or val.isspace():
+            return
+        if val[0] == '"':
+            eq = val.find('=')
+            if not eq:
+                raise RuntimeError("Unsupported env " + repr(val))
+            if val[-1] != '"':
+                raise RuntimeError("Unsupported env " + repr(val))
+            env[val[1: eq]] = val[eq + 1: -1]
+            return
+        values = val.split()
+        for val in values:
+            eq = val.find('=')
+            if not eq:
+                raise RuntimeError("Unsupported env " + repr(val))
+            env[val[:eq]] = val[eq + 1:]
 
     def parse_param(key, val):
         if key == 'params':
@@ -523,23 +541,11 @@ def parse_inf_file(f):
             key = 'environ'
             if not key in res:
                 res[key] = {}
-            eq = val.find('=')
-            if not eq:
-                raise RuntimeError("Unsupported env " + repr(val))
-            if len(val) > 2 and val[0] == '"' == val[-1]:
-                res[key][val[1: eq]] = val[eq + 1: -1]
-            else:
-                res[key][val[: eq]] = val[eq + 1:]
+            parse_env(val, res[key])
         elif key == 'interactor_env':
             if key not in res:
                 res[key] = {}
-            eq = val.find('=')
-            if not eq:
-                raise RuntimeError("Unsupported env " + repr(val))
-            if len(val) > 2 and val[0] == '"' == val[-1]:
-                res[key][val[1: eq]] = val[eq + 1: -1]
-            else:
-                res[key][val[: eq]] = val[eq + 1:]
+            parse_env(val, res[key])
         elif key == 'comment':
             pass
         elif key == 'time_limit_ms' or key == 'real_time_limit_ms':
