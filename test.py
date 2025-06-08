@@ -448,8 +448,8 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         if not check_exit_code(p.returncode, meta.get('exit_code', '0')):
             if str(test) not in may_fail_local:
                 print(res)
-                raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
-            print(f'Solution failed with code {p.returncode} on test {input_file}, expected: ', meta.get('exit_code', '0'))
+                raise RuntimeError(f'Solution failed with code {p.returncode} on test {input_file}, expected: {meta.get("exit_code", "0")}')
+            print(f'Solution failed with code {p.returncode} on test {input_file}, expected: {meta.get("exit_code", "0")}')
             print('May fail local. Skipped')
         if not skip_tests:
             if isinstance(checker, Path):
