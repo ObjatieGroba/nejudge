@@ -405,11 +405,11 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         'env': env,
     }
     if 'max_process_count' in meta and is_pipeline:
+        m = int(meta.get('max_process_count'))
         def preexec_fn():
-            m = int(meta.get('max_process_count'))
-            print(resource.getrlimit(resource.RLIMIT_NPROC), m, file=sys.stderr)
+            print(resource.getrlimit(resource.RLIMIT_NPROC), file=sys.stderr)
             resource.setrlimit(resource.RLIMIT_NPROC, (m, m))
-            print(resource.getrlimit(resource.RLIMIT_NPROC), m, file=sys.stderr)
+            print(resource.getrlimit(resource.RLIMIT_NPROC), file=sys.stderr)
         popen_args['preexec_fn'] = preexec_fn
     if meta.get('check_stderr', False):
         print('Use stderr instead of stdout')
