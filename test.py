@@ -400,6 +400,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
     popen_args = {
         'stdin': subprocess.PIPE,
         'stdout': subprocess.PIPE,
+        'start_new_session': True,  # Isolate process
         'env': env,
     }
     if meta.get('check_stderr', False):
@@ -407,8 +408,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         popen_args['stderr'] = popen_args.pop('stdout')
     with Initializer(initializer, input_file, correct_file, inf_file, env, run_path, run_till_end=run_initializer_till_end):
         if interactor:
-            # Use shell=True for creating nwe process group
-            p = subprocess.Popen(shlex.join(full_cmd), **popen_args, shell=True)
+            p = subprocess.Popen(full_cmd, **popen_args)
             pid = p.pid
             if user:
                 try:
@@ -440,8 +440,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         else:
             with open(input_file) as fin:
                 popen_args['stdin'] = fin
-                # Use shell=True for creating nwe process group
-                p = subprocess.Popen(shlex.join(full_cmd), **popen_args, shell=True)
+                p = subprocess.Popen(full_cmd, **popen_args)
                 res, err = p.communicate()
                 if meta.get('check_stderr', False):
                     res = err
