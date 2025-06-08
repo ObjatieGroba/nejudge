@@ -400,7 +400,7 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
     popen_args = {
         'stdin': subprocess.PIPE,
         'stdout': subprocess.PIPE,
-        'shell': False,
+        'shell': True,
         'env': env,
     }
     if meta.get('check_stderr', False):
