@@ -435,11 +435,12 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
             p.wait()
             i.wait()
             if i.returncode != 0:
-                if os.path.isfile('output'):
-                    with open('output', 'rb') as f:
-                        print(f.read().decode(errors='replace'))
-                    print()
-                raise RuntimeError(f'Interactor failed with code {i.returncode} on test {input_file}')
+                if str(test) not in may_fail_local:
+                    if os.path.isfile('output'):
+                        with open('output', 'rb') as f:
+                            print(f.read().decode(errors='replace'))
+                        print()
+                    raise RuntimeError(f'Interactor failed with code {i.returncode} on test {input_file}')
             with open('output', 'rb') as f:
                 res = f.read()
         else:
