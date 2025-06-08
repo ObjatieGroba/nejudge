@@ -542,7 +542,7 @@ def parse_inf_file(f):
                 res[key][val[: eq]] = val[eq + 1:]
         elif key == 'comment':
             pass
-        elif key == 'time_limit_ms':
+        elif key == 'time_limit_ms' or key == 'real_time_limit_ms':
             res['time_limit'] = int(val) / 1000
         elif key == 'exit_code':
             if key in res:
