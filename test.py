@@ -19,6 +19,7 @@ import difflib
 import json
 import yaml
 import shutil
+import resource
 
 nejudge_path = Path(os.path.realpath(__file__)).parent
 
@@ -403,6 +404,10 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
         'start_new_session': True,  # Isolate process
         'env': env,
     }
+    if 'max_process_count' in meta and is_pipeline:
+        def preexec_fn():
+            resource.setrlimit(resource.RLIMIT_NPROC, int(meta.get('max_process_count')))
+        popen_args['preexec_fn'] = preexec_fn
     if meta.get('check_stderr', False):
         print('Use stderr instead of stdout')
         popen_args['stderr'] = popen_args.pop('stdout')
@@ -538,6 +543,8 @@ def parse_inf_file(f):
         elif key == 'exit_code':
             if key in res:
                 raise RuntimeError("Duplicated params")
+            res[key] = val
+        elif key == 'max_process_count':
             res[key] = val
         else:
             raise RuntimeError(f"Unknown inf param {key} = {val}")
