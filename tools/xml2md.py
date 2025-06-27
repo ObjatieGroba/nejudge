@@ -10,6 +10,10 @@ def xml2md(elem: ET.Element, idx=0):
         return ((elem.text if elem.text else '') + '\n' +
                 ''.join(xml2md(inner, i) for i, inner in enumerate(elem)) +
                 (elem.tail if elem.tail else '') + '\n')
+    if elem.tag == 'ol':
+        return ((elem.text if elem.text else '') + '\n' +
+                ''.join(xml2md(inner, i) for i, inner in enumerate(elem)) +
+                (elem.tail if elem.tail else '') + '\n')
     if elem.tag == 'li':
         return (f'{idx + 1}) ' + (elem.text if elem.text else '') +
                 ''.join(xml2md(inner, i) for i, inner in enumerate(elem)) +
