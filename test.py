@@ -556,7 +556,7 @@ def parse_inf_file(f):
             res[key] = val
         elif key == 'max_process_count':
             res[key] = val
-        elif key == 'max_vm_size':
+        elif key == 'max_vm_size' or key == 'max_rss_size':
             pass  # ignore
         else:
             raise RuntimeError(f"Unknown inf param {key} = {val}")
