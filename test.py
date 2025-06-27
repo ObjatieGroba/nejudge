@@ -289,13 +289,13 @@ class Initializer:
                 print(f"WARN: Failed to run initializer stop {self.p.returncode}")
 
 
-def create_run_dir(original: Path, static_may_be_linked: bool, dst: Path = Path('run')) -> Path:
+def create_run_dir(original: Path, static_copy: bool, dst: Path = Path('run')) -> Path:
     try:
         shutil.rmtree(dst)
     except:
         pass
     if original.exists():
-        if static_may_be_linked:
+        if not static_copy:
             dst.mkdir()
             for file in os.listdir(original):
                 os.symlink((original / file).absolute(), dst / file)
@@ -375,13 +375,13 @@ def res_checker(res: bytes, ans: Path, checker: str):
 def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str, params: str,
                  output_file: tp.Optional[str], env_add: tp.Optional[tp.Dict[str, str]],
                  interactor: tp.Optional[str], initializer: tp.Optional[str], user: tp.Optional[str],
-                 meta: tp.Dict[str, tp.Any], is_pipeline: bool, dirent: Path, static_may_be_linked: bool, input_filename: str,
+                 meta: tp.Dict[str, tp.Any], is_pipeline: bool, dirent: Path, static_copy: bool, input_filename: str,
                  checker: str, may_fail_local: list[str], skip_tests: bool, run_initializer_till_end: bool) -> bytes:
     input_file = input_file.absolute()
     correct_file = correct_file.absolute()
     inf_file = inf_file.absolute()
 
-    run_path = create_run_dir(dirent, static_may_be_linked)
+    run_path = create_run_dir(dirent, static_copy)
     params = params.replace(input_filename, relative_path(run_path, input_file))
     if meta.get('enable_subst', False):
         params = params.replace('${problem.problem_dir}', os.getcwd())
@@ -397,7 +397,10 @@ def run_solution(input_file: Path, correct_file: Path, inf_file: Path, cmd: str,
     env = os.environ
     if env_add:
         env = env.copy()
-        env.update(env_add)
+        if meta.get('enable_subst', False):
+            env.update((key, val.replace('${problem.problem_dir}', os.getcwd())) for key, val in env_add.items())
+        else:
+            env.update(env_add)
     before_children_user = os.times().children_user
     if interactor:
         interactor = Path(interactor).absolute()
@@ -596,7 +599,7 @@ parser.add_argument('--initializer-run-till-end', action='store_true')
 parser.add_argument('--may-fail-local', nargs='+', default=[])
 parser.add_argument('--user', required=False)
 parser.add_argument('--input-filename', default='input.txt')
-parser.add_argument('--static-may-be-linked', action='store_true')
+parser.add_argument('--static-copy', action='store_true')
 args = parser.parse_args()
 
 is_pipeline = bool(os.environ.get('GITLAB_CI', None))
@@ -628,7 +631,7 @@ for cnt in range(retests_amount):
         if not ans.is_file() and not args.prepare_answers:
             raise RuntimeError("No answer for test " + test.name)
         res = run_solution(test, ans, inf, args.run_cmd, meta.get('params', ''), args.output_file, meta.get('environ'),
-                           args.interactor, args.initializer, args.user, meta, is_pipeline, dirent, args.static_may_be_linked,
+                           args.interactor, args.initializer, args.user, meta, is_pipeline, dirent, args.static_copy,
                            args.input_filename, args.checker, args.may_fail_local, skip_tests=args.prepare_answers,
                            run_initializer_till_end=args.initializer_run_till_end)
         if args.prepare_answers:
