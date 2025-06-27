@@ -322,12 +322,12 @@ def fix_command_path(cmd: list[str], run_path: Path, extra_params: list[str]) ->
         if param.startswith('./'):
             full_cmd.append(relative_path(run_path, Path(param)))
         elif param == 'params':
-            full_cmd += extra_params
+            full_cmd += [param.replace('\\t', '\t').replace('\\n', '\n') for param in extra_params]
             any_params = True
         else:
             full_cmd.append(param)
     if not any_params:
-        full_cmd += extra_params
+        full_cmd += [param.replace('\\t', '\t').replace('\\n', '\n') for param in extra_params]
     return full_cmd
 
 
